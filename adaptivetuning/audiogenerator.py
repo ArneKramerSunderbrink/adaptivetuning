@@ -117,14 +117,7 @@ class CustomSynth(sc3nb.synth.Synth):
             pass  # pass instead of self.free()
         
         
-# is it a problem to have at worst 128 Synth runing in Osc?
-
-# todo 
-# write docu
-
-#todo besser alle keys am anfang initialisieren und dann für immer behalten,
-# dann brauch ich nicht immer nachfragen ob die existieren
-
+# todo write docu
 class Audiogenerator:
     """Audiogenerator class. Manages a microtonal additive synthesizer.
     

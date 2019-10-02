@@ -44,6 +44,7 @@ def write_scala(intervals, filename, description=None, intervals_in_cents=False)
         f.write('\n'.join(lines))
 
 
+# todo write doku
 class Scale:
     """Scale class. Manages a dictionary that assigns every pitches a frequency.
     """
