@@ -6,3 +6,5 @@ from .scale import read_scala, write_scala
 from .audiogenerator import KeyData
 from .audiogenerator import Audiogenerator
 from .midiprocessing import Midiprocessing
+from .audioanalyzer import Audioanalyzer
+from .dissonancereduction import Dissonancereduction

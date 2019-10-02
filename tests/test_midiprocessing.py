@@ -6,7 +6,7 @@ def test_playfile():
     note_ons = []
     note_offs = []
     stopped = []
-    midiprocessing.note_on_callback = lambda pitch, freq: note_ons.append((pitch, freq))
+    midiprocessing.note_on_callback = lambda pitch, amp: note_ons.append((pitch, amp))
     midiprocessing.note_off_callback = lambda pitch: note_offs.append(pitch)
     midiprocessing.stop_callback = lambda: stopped.append(True)
     midiprocessing.read_file("midi_files/BWV_0227.mid")

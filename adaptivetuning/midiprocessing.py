@@ -58,6 +58,7 @@ class Midiprocessing():
             self.handle_message(msg)
         
         self.stop()
+        self.stop_callback()
         
     def play_port(self, stop_event=None):
         if self.port_name is None:
@@ -86,6 +87,7 @@ class Midiprocessing():
             if in_port is not None:
                 in_port.close()
                 self.stop()
+                self.stop_callback()
 
     def handle_message(self, msg):
         if msg.type == 'note_on':
@@ -100,7 +102,6 @@ class Midiprocessing():
             
     def stop(self):
         self._stop_flag = True
-        self.stop_callback()
     
     def get_port_names(self):
         return mido.get_input_names()
