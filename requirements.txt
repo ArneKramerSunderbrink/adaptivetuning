@@ -4,3 +4,4 @@ pyaudio>=0.2.11
 wave>=0.0.2
 sc3nb>=0.0.1
 mido>=1.2.9
+matplotlib

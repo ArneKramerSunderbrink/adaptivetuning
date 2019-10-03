@@ -29,7 +29,7 @@ def test_reduction():
         np.array(partials_pos), np.array(partials_vol),
         np.array(fixed_freq), np.array(fixed_vol))
 
-    # droping pairs with v = 0 or h > 1.46 reduces the amount of relevant pairs from 1210 to 140
+    # droping pairs with v = 0 or h > 1.46 reduces the amount of relevant pairs from 1210 to 137
     assert len(relevant_pairs) == 140
 
     # The second overtone of the tonic (2, -1) and the first overtone of the fifths (1, 1) are close -> relevant
@@ -38,10 +38,10 @@ def test_reduction():
     # The fundamental of the tonic (0, -1) and the first overtone of the fifths (1, 1) are not close -> irrelevant
     assert [1, 1, 0, -1] not in relevant_pairs.tolist()
 
-    # The eighth overtones of the third and fifths are close -> relevant
+    # The fifth overtones of the fifth and nineth overtone of the tonic are close -> relevant
     assert [0, 8, 1, 8] in relevant_pairs.tolist()
 
-    # but since the eighth overtone of our piano is very week, the volume factor of the pair is small:
+    # But since the eighth overtones of out timbre are very weak, their volume factor is small
     assert approx_equal(volume_factors[relevant_pairs.tolist().index([0, 8, 1, 8])], 0.8608141448259226)
 
     # The first overtones are strong -> big volume factor

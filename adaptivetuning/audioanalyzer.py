@@ -120,6 +120,12 @@ class Audioanalyzer:
         if self._nr_channels > 1:
             signal = signal.reshape((self.blocksize, self._nr_channels))[:,0]
         
+        # this is my hacky method of translating sample values into reasonable amplitude values
+        if self._format == np.float32:
+            signal = signal / np.finfo(self._format).max * 20
+        else:
+            signal = signal / np.iinfo(self._format).max * 20
+        
         self.analyze_signal(signal)
         
         return data, pyaudio.paContinue
@@ -170,6 +176,12 @@ class Audioanalyzer:
             return data, pyaudio.paContinue
         
         signal = np.copy(signal)  # frombuffer yields read only, so we need a copy
+        
+        # this is my hacky method of translating sample values into reasonable amplitude values
+        if self._format == np.float32:
+            signal = signal / np.finfo(self._format).max * 20
+        else:
+            signal = signal / np.iinfo(self._format).max * 20
         
         self.analyze_signal(signal)
         

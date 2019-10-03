@@ -16,15 +16,13 @@ class Dissonancereduction:
     
     """
 
-    def __init__(self, amplitude_threshold = 0.00002,
+    def __init__(self, amplitude_threshold = 2e-5,
                  method="L-BFGS-B", relative_bounds=(2**(-1/36), 2**(1/36)), max_iterations=None):
         self.method = method
         self.options = dict()
         self.relative_bounds = relative_bounds
         self.max_iterations = max_iterations
-        if amplitude_threshold <= 0.:
-            amplitude_threshold = 0.00000001 
-        self.amp_threshold_log = np.log10(amplitude_threshold)
+        self.amplitude_threshold = amplitude_threshold
             
     @property
     def max_iterations(self):
@@ -41,6 +39,16 @@ class Dissonancereduction:
                 del self.options['maxiter']
         else:
             self.options['maxiter'] = max_iterations
+            
+    @property
+    def amplitude_threshold(self):
+        return 10**self._amp_threshold_log
+    
+    @amplitude_threshold.setter
+    def amplitude_threshold(self, amplitude_threshold):
+        if amplitude_threshold <= 0.:
+            amplitude_threshold = 1e-10
+        self._amp_threshold_log = np.log10(amplitude_threshold)
      
     def quasi_constants(self, fundamentals_freq, fundamentals_amp, partials_pos,
                         partials_amp, fixed_freq, fixed_amp):
@@ -120,10 +128,10 @@ class Dissonancereduction:
         # $L_{pt}(f)$, loosing the small bump between 2 and 5 kHz, to save even more computation time
         # - much easier to calculate and still accurate enough for our purpose as a model of the
         # human loudness perception.
-        v1s = np.log10(v1s) - self.amp_threshold_log - 45.71633305 * p1s**(-0.8) - 5e-17 * p1s**4
-        v2s = np.log10(v2s) - self.amp_threshold_log - 45.71633305 * p2s**(-0.8) - 5e-17 * p2s**4
+        v1s = np.log10(v1s) - self._amp_threshold_log - 45.71633305 * p1s**(-0.8) - 5e-17 * p1s**4
+        v2s = np.log10(v2s) - self._amp_threshold_log - 45.71633305 * p2s**(-0.8) - 5e-17 * p2s**4
         
-        cond = np.where(np.logical_or(v1s > 0., v2s > 0.))
+        cond = np.where(np.logical_and(v1s > 0., v2s > 0.))
         
         volume_factors = np.minimum(v1s[cond], v2s[cond])
         
