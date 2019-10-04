@@ -201,13 +201,13 @@ class Audiogenerator:
     
     Attributes
     ----------
-    sc: sc3nb.SC or None
+    sc : sc3nb.SC or None
         sc3nb.SC object to communicate with SuperCollider.
         If None is given the synthesizer runs silently.
         Setting sc automatically sends the SynthDef to SuperCollider (Default value = None)
-    global_amplitude: float
+    global_amplitude : float
         Master volume of the synthesizer. (Default value = 0.01)
-    scale: adaptivetuning.Scale
+    scale : adaptivetuning.Scale
         A Scale that manages the tuning of the synthesizer.
         If None is given, the default scale is used which is 12TET.
         Setting a new scale of changing the current scale changes the tuning of currently running synths.
@@ -256,11 +256,11 @@ class Audiogenerator:
     get_now : function
         A function that returns the current time in seconds when called.
         When None is given it is set to time.time. (Default value = None)
-    keys: dict of adaptivetuning.KeyData
+    keys : dict of adaptivetuning.KeyData
         List of all keys (0 to 128). Stores informations about when they were pressed, released,
         what's their frequency, partial positions, what's their current amplitude, etc.
         Don't change manually, use note_on, note_change_freq, scale['A4'] = 123 etc.
-    synths: dict of adaptivetuning.CustomSynth
+    synths : dict of adaptivetuning.CustomSynth
         Custom version of sc3nb.synth.Synth that represents a SuperCollider synths.
         Don't change manually, use note_on, note_change_freq, scale['A4'] = 123 etc.
     """

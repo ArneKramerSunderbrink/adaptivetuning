@@ -11,6 +11,13 @@ from .dissonancereduction import Dissonancereduction
 
 
 def plot_session_log(session_log, save_to_file=False):
+    """Plots the log of a tuner session (tuner.session_log).
+   
+    Parameters
+    ----------
+    session_log: dict
+        Session log from a tuner (tuner.session_log).
+    """
     if len(session_log['tunings']) == 0:
         print("No tunings to plot.")
         return
@@ -83,7 +90,7 @@ def plot_session_log(session_log, save_to_file=False):
     ax1.set_ylim(min_freq * 0.98, max_freq * 1.02)
     ax2.set_ylim(min_diss * 0.98, max_diss * 1.02)
 
-    if max_freq / min_freq < 3:  # sonst wirds zu eng
+    if max_freq / min_freq < 3:  # to cramped otherwise
         yticks_pitches = list(filter(lambda p: scale_et[p] >= min_freq * 0.9
                                                and scale_et[p] <= max_freq * 1.1,
                                      range(128)))
@@ -109,17 +116,68 @@ def plot_session_log(session_log, save_to_file=False):
 
 
 
-#todo
-# doku
+# todo
 # tuning for different timbres
-
-# aufräumen nach der session mit jiajun und thomas:
-# _midi_lock sollte besser audiogenerator_lock heißen
-# macht er eig mist wenn man ihn startet obwohl kein midi keyboard angeschlossen ist?
+# More controll via keyboard during tuning session, e.g. select different scales.
 
 class Tuner:
+    """Tuner class. Manages the other objects of the adaptivetuning module in a multithreading environment.
+    
+    A tuner has an Audiogenerator, an Audioanalyzer, a Dissonancereduction object, and a Midiprocessing object.
+    In general all their parameters (with the exception of the callbacks) can be changed.
+    
+    The only method you need is start, the other methods are more for internal use during the session started via start.
+    
+    Example to get started:
+    
+    import sc3nb
+    sc = sc3nb.startup()
+    tuner = Tuner(sc=sc)
+    tuner.audiogenerator.set_synth_def_with_dict(Audiogenerator.presets['piano'])
+    # adjust the amplitude threshold (used to approximate the loudness of partials) to your listening environment
+    tuner.test_amplitude_threshold()
+    tuner.dissonancereduction.amplitude_threshold = 0.00005
+    tuner.start()
+    
+    Attributes
+    ----------
+    sc : sc3nb.SC or None
+        sc3nb.SC object to communicate with SuperCollider.
+        If None is given the synthesizer runs silently. (Default value = None)
+    tuning_interval : float
+        The tuner will tune all currently running tones at least every tuning_interval seconds, regardles whether a tuning is
+        requested by a midi handler. (Default value = 0.3)
+    audio_lag : float
+        Time (in seconds) between receiving a midi message and forwarding the message to SuperCollider.
+        This is the time the tuner has to optimize the tuning. (Default value = 0.3)
+    safe_session_log : bool
+        If true all tuning results are stored in self.session_log.
+    session_log : dict
+        A dictionary with the tuning results from the last tuning session. (Default value = False)
+    midiprocessing : adaptivetuning.Midiprocessing
+        The Midiprocessing object used to read from a midi file oder midi port.
+    audioanalyzer : adaptivetuning.Audioanalyzer
+        The audioanalyzer used to analyse an audio file or live recorded audio.
+    fixed_freq : list of float
+        A list of the fixed frequencies last found by the audioanalyzer.
+    fixed_amp : list of float
+        A list of the amplitudes of the fixed frequencies last found by the audioanalyzer.
+    audiogenerator : adaptivetuning.Audiogenerator
+        The audiogenerator used to play the tones of the midi processor.
+    dissonancereduction : adaptivetuning.Dissonancereduction
+        Provides the optimization algorithm to tune the tones.
+    """
     
     class LockedBool:
+        """A bool protected by a threading.Lock
+        
+        Attributes
+        ----------
+        lock : threading.lock
+            The Lock.
+        val : bool
+            The bool.
+        """
         def __init__(self):
             self.lock = threading.Lock()
             self.val = False
@@ -138,8 +196,8 @@ class Tuner:
                 self.lock.release()
                 return False
         
-        # if val is true, set val to False and return true, if val is false just return false
         def check_true_set_false(self):
+            """If val is true, set val to False and return true, if val is false just return false."""
             self.lock.acquire()
             if self.val:
                 self.val = False
@@ -150,7 +208,25 @@ class Tuner:
                 return False
     
     def __init__(self, sc=None, tuning_interval=0.3, audio_lag=0.3, safe_session_log=False):
-        # tuner will tune immediately every noteon but at least every tuning_interval seconds
+        """__init__ method
+        
+        Parameters
+        ----------
+        sc : sc3nb.SC or None
+            sc3nb.SC object to communicate with SuperCollider.
+            If None is given the synthesizer runs silently. (Default value = None)
+        tuning_interval : float
+            The tuner will tune all currently running tones at least every tuning_interval seconds,
+            regardles whether a tuning is requested by a midi handler. (Default value = 0.3)
+        audio_lag : float
+            Time (in seconds) between receiving a midi message and forwarding the message to SuperCollider.
+            This is the time the tuner has to optimize the tuning. (Default value = 0.3)
+        safe_session_log : bool
+            If true all tuning results are stored in self.session_log.
+        session_log : dict
+            A dictionary with the tuning results from the last tuning session. (Default value = False)
+        """
+        # tuner will tune immediately on every note-on message but at least every tuning_interval seconds
         self.tuning_interval = tuning_interval
         # time between midi in and note sounding / time the tuner has to tune
         self.audio_lag = audio_lag
@@ -181,13 +257,20 @@ class Tuner:
         self.dissonancereduction = Dissonancereduction(relative_bounds=None, method='CG')
 
     def test_amplitude_threshold(self):
-        # play reference tone (sine 1khz) at amplitude threshold for two second, you should barely be able to her it
-        # if its to loud or to quiet change the self.dissonancereduction.amplitude_threshold 
+        """Plays reference tone to adjust the amplitude threshold to your speakers.
+        Play reference tone (sine 1khz) at dissonancereduction.amplitude_threshold for two second,
+        you should barely be able to her it, otherwise change it to accordingly.
+        """
         self.audiogenerator.sc.cmd('{SinOsc.ar(1000,0,' + str(self.dissonancereduction.amplitude_threshold) + ')!2}.play')
         time.sleep(2)
         self.audiogenerator.sc.cmd('s.freeAll')
     
     def tune_loop(self):
+        """The tuner thread used dissonancereduction to tune the currently running complex tones of the audiogenerator
+        in regular intervals or immediately if midiprocessing received a note-on message.
+        Also taking into account fixed frequencies found by the audioanalyzer.
+        The tuned frequencies are passed to the audiogenerator.
+        """
         timer = self.tuning_interval
         while not self._stop_signal.is_set():
             timer -= 0.01
@@ -206,7 +289,7 @@ class Tuner:
                             and self.audiogenerator.keys[pitch].currently_running:
                         pitches.append(pitch)
                         #fundamentals_freq.append(self.audiogenerator.keys[pitch].frequency)  ## immer vom letzten Ergebnis
-                        fundamentals_freq.append(440 * 2**((pitch - 69) / 12))  ## test immer von 12tet aus tunen
+                        fundamentals_freq.append(440 * 2**((pitch - 69) / 12))  ## immer von 12TET aus tunen
                         fundamentals_amp.append(self.audiogenerator.keys[pitch].amplitude)
                         #partials_pos.append(self.audiogenerator.keys[pitch].partials_pos)
                         #partials_amp.append(self.audiogenerator.keys[pitch].partials_amp)
@@ -217,7 +300,7 @@ class Tuner:
                     
                 self._midi_lock.release()
                 
-                if len(pitches) == 0:
+                if len(pitches) == 0:  # nothing to tune
                     timer = self.tuning_interval
                     continue
 
@@ -235,8 +318,6 @@ class Tuner:
                 )['x']
                 
                 if not self._stop_tuning_signal.is_set():
-                    #print(tuned_fundamentals)
-
                     if self.safe_session_log:
                         self.session_log['tunings'][time.time() - self._start_time] = {
                             'pitches': pitches,
@@ -265,12 +346,15 @@ class Tuner:
                 time.sleep(0.01)
     
     def midi_note_on_callback(self, pitch, amp):
+        """Callback for midiprocessing, starts a handler thread."""
         midi_handler_thread = threading.Thread(target=self.midi_note_on_handler, args=(pitch, amp))
         midi_handler_thread.start()
         self._midi_handler_threads[midi_handler_thread.ident] = midi_handler_thread
         self.del_dead_handlers()
     
     def midi_note_on_handler(self, pitch, amp):
+        """The midi handler thread registers its message in the audiogenerator, requests a tuning from the tuner thread,
+        waits for audio_lag seconds and passes the message to SuperCollider"""
         self._midi_lock.acquire()
         self.audiogenerator.register_note_on(pitch, amp)
         self._midi_lock.release()
@@ -284,12 +368,15 @@ class Tuner:
         self._midi_lock.release()
     
     def midi_note_off_callback(self, pitch):
+        """Callback for midiprocessing, starts a handler thread."""
         midi_handler_thread = threading.Thread(target=self.midi_note_off_handler, args=(pitch,))
         midi_handler_thread.start()
         self._midi_handler_threads[midi_handler_thread.ident] = midi_handler_thread
         self.del_dead_handlers()
     
     def midi_note_off_handler(self, pitch):
+        """The midi handler thread registers its message in the audiogenerator, requests a tuning from the tuner thread,
+        waits for audio_lag seconds and passes the message to SuperCollider"""
         self._midi_lock.acquire()
         self.audiogenerator.register_note_off(pitch)
         self._midi_lock.release()
@@ -301,12 +388,15 @@ class Tuner:
         self._midi_lock.release()
     
     def midi_stop_callbackack(self):
+        """Callback for midiprocessing, starts a handler thread."""
         midi_handler_thread = threading.Thread(target=self.midi_stop_handler)
         midi_handler_thread.start()
         self._midi_handler_threads[midi_handler_thread.ident] = midi_handler_thread
         self.del_dead_handlers()
     
     def midi_stop_handler(self):
+        """The midi handler thread registers its message in the audiogenerator, requests a tuning from the tuner thread,
+        waits for audio_lag seconds and passes the message to SuperCollider"""
         self._midi_lock.acquire()
         self.audiogenerator.register_stop_all()
         self._midi_lock.release()
@@ -318,16 +408,38 @@ class Tuner:
         self._midi_lock.release()
     
     def audio_analyzer_callback(self, peaks_freq, peaks_amp):
+        """Callback for audioanalyzer, stores the fixed frequencies and theit amplitudes."""
         self._audio_lock.acquire()
         self.fixed_freq = peaks_freq
         self.fixed_amp = peaks_amp
         self._audio_lock.release()
     
     def del_dead_handlers(self):
+        """Delete midi handler threads that returned and don't need to be stored anymore"""
         for k in [k for k in self._midi_handler_threads if not self._midi_handler_threads[k].is_alive()]:
             del self._midi_handler_threads[k]
     
     def start(self, midi_file=None, fixed_audio=False):
+        """Starts a tuning session.
+        Allows for basic controll of the tuning session via keyboard input:
+        Type 'a' for adaptive tuning, 'et' for twelve tone equal temperament, 'ji' for just intonation with tonic C
+        and 'exit' to stop the session.
+        
+        Use it like this:
+        
+        With midi controller and without audio:
+        tuner.start()
+        
+        With midi file and without audio:
+        tuner.start(midi_file="midi_files/BWV_0227.mid")
+        
+        With midi controller and fixed audio:
+        tuner.start(fixed_audio="audio_files/example_noise_2.wav")
+        
+        With midi file and fixed audio:
+        tuner.start(midi_file="midi_files/BWV_0227.mid", fixed_audio="audio_files/example_noise_2.wav")
+        
+        """
         # set up everything, create threads
         self._tuner_thread = threading.Thread(target=self.tune_loop, args=())
         
@@ -391,6 +503,7 @@ class Tuner:
         self.stop()
     
     def stop(self):
+        """Stop a tuning session: Stops all threads and waits for them to return."""
         if not self._stop_signal.is_set():
             self._stop_signal.set()
 
@@ -406,6 +519,7 @@ class Tuner:
             self.audiogenerator.stop_all()
     
     def init_session_log(self):
+        """Start a fresh session log."""
         self.session_log = {
             'name': 'tuning_session_log_' + time.asctime().replace(' ', '_'),
             'tuner params': {
@@ -421,6 +535,7 @@ class Tuner:
         }
     
     def write_session_log_to_file(self, filename=None):
+        """Writes the session log to a file with the given filename"""
         if self.session_log != dict():
             if filename is None:
                 filename = self.session_log['name']
