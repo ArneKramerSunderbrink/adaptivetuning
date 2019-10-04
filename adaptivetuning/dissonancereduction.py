@@ -14,7 +14,7 @@ class Dissonancereduction:
     amplitude_threshold : float
         Lowest amplitude where a sine wave at 1 kHz is barely audible.
         (Defaul value = 2e-5, the threshold of hearing in Air in Pa)
-    method : string
+    method : str
         Optimization method to use. See scipy.optimize.minimize for options. (Defaul value = "L-BFGS-B")
     relative_bounds : pair of floats
         Lower and upper bound of the range around each fundamental frequency the algorithm searches.
