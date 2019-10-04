@@ -4,41 +4,77 @@ import pyaudio
 import wave
 import time
 
-# todo
-# doku
-
+# todos
 # there are many possible upgrades here: start reading a file from a certain point, read a file offline, have a
 # real silent playback without output, not with zero-output... etc
 
 class Audioanalyzer:
-    """
-    Attributes temporarily needed and created when reading a file:
-    self._nr_channels, self._wave_file, self._format
+    """Audio analysis cass. Provides methods to find pronounced frequencies in an audio signal in real time.
+    The Audioanalyzer can record audio or read a .wav file, analyse it spectrum in regular time intervals
+    and hand the found frequencies to a given callback function.
+    
+    It is strongly recommended to use the default values unless you know what your doing.
+    The effect on the fft computation time and accuracy can be rather extreme and unpredictable.
+    
+    Attributes
+    ----------
+    sample_rate : int
+        Sample rate of the signal to analyse. (Default value = 44100)
+    low_cut : int or float
+        The lowest frequency (in Hz) to be included in the analyzis. (Default value = 20)
+    high_cut : int or float
+        The highest frequency (in Hz) to be included in the analyzis. (Default value = 18000)
+    downsample : int
+        Downsampling factor. (Default value = 8, which means everey eighth sample is used by the FFT)
+    blocksize : int
+        The signal to be analysed gets cut into pieaces of that many samples. (Default value = 2**15)
+    prominence_threshold: float
+        The lowest possible prominence of a peak that can be found in the spectrum.
+        If 0, there will be no filtering. The peaks will still be sorted by prominence.
+        See scipy.signal.find_peaks. (Default value = 0.015)
+    max_nr_peaks : int
+        Maximal number of peaks the analysis returns. If None, all found peaks will be passed to the callback.
+        (Default value = 10)
+    result_callback : function
+        A function that gets called everytime the analysis of a block is completet. If None is given than
+        result_callback = lambda peaks_freq, peaks_amp: None
+        (Default value = None)
+    silent : bool
+        When silent is false, the analyzed blocks are played back during analysis. Beware of feedback when recording!
+        (Default value = True)
     """
     
     def __init__(self, sample_rate=44100, low_cut=20, high_cut=18000, downsample=8, blocksize=2**15,
                  prominence_threshold=0.015, max_nr_peaks=10, result_callback=None,
                  silent=True):
-        """INIT: TODODOKU
+        """__init__ method
         
         Parameters
         ----------
-        sample_rate: int
-            The sample rate of the signal to be analyzed. (Default value = 44100)
-        low_cut: int
+        sample_rate : int
+            Sample rate of the signal to analyse. (Default value = 44100)
+        low_cut : int or float
             The lowest frequency (in Hz) to be included in the analyzis. (Default value = 20)
-        high_cut: int
+        high_cut : int or float
             The highest frequency (in Hz) to be included in the analyzis. (Default value = 18000)
+        downsample : int
+            Downsampling factor. (Default value = 8, which means everey eighth sample is used by the FFT)
+        blocksize : int
+            The signal to be analysed gets cut into pieaces of that many samples. (Default value = 2**15)
         prominence_threshold: float
-            Minimal prominence of peaks (see scipy.signal.find_peaks). (Default value = 0.015)
-            
-        TODO downsample, blocksize, it is strongly recommended to use the default values unless you
-        know what your doing - the results on fft computation time and accuracy can be quite unpredictable...
-        downsample musst be an integer! downsample = n means take every nth sample
-        prominence_threshold = 0 to not filter
-        max_nr_peaks = None to get all detected peaks
-        resultcallback...
-            
+            The lowest possible prominence of a peak that can be found in the spectrum.
+            If 0, there will be no filtering. The peaks will still be sorted by prominence.
+            See scipy.signal.find_peaks. (Default value = 0.015)
+        max_nr_peaks : int
+            Maximal number of peaks the analysis returns. If None, all found peaks will be passed to the callback.
+            (Default value = 10)
+        result_callback : function
+            A function that gets called everytime the analysis of a block is completet. If None is given than
+            result_callback = lambda peaks_freq, peaks_amp: None
+            (Default value = None)
+        silent : bool
+            When silent is false, the analyzed blocks are played back during analysis. Beware of feedback when recording!
+            (Default value = True)
         """
         if result_callback is None:
             result_callback = lambda peaks_freq, peaks_amp: None
@@ -56,6 +92,7 @@ class Audioanalyzer:
         
     def analyze_signal(self, signal):
         """Finds prominent frequencies in a given Signal.
+        In addition to returning peaks_freq and peaks_amp it also passes them to the callback function.
 
         Parameters
         ----------
@@ -69,7 +106,6 @@ class Audioanalyzer:
         peaks_amp: list of floats
             A list of the approximated volumes of the ten most prominent peaks, sorted by prominence.
         """
-        
         # Downsample
         signal = signal[::self.downsample].astype(np.float32)
 
@@ -102,6 +138,14 @@ class Audioanalyzer:
         return peaks_freq, peaks_amp
     
     def _file_callback(self, in_data, frame_count, time_info, status):
+        """Gets called every time a block of samples is read from a file.
+        See pyaudio.PyAudio.open
+        
+        Prepares the raw audio data for analyze_signal. In particular translates the sample values
+        into a reasonable amplitude range depending on the format of the file.
+        For multiple channels it passes only the first channel to analyze_signal.
+        """
+        
         data = self._wave_file.readframes(frame_count)
         
         signal = np.copy(np.frombuffer(data, self._format))
@@ -131,25 +175,28 @@ class Audioanalyzer:
         return data, pyaudio.paContinue
     
     def analyze_file(self, file, max_duration=None, stop_event=None):
-        """
+        """Analyze a wave file.
+        
+        Parameters
+        ----------
         file: str
-            Path to file to be played.
+            Path to wave file to be analyzed.
         max_duration: float
             Maximal duration for wich the file will be played.
-            If None it plays the whole file if it's not stopped via stop_event. (Default = None)
+            If None it plays the whole file if it's not stopped via stop_event. (Default value = None)
         stop_event: threading.Event
-            ...TODO
-            
+            The analysis stops when a given Event is set. (Default value = None)   
         """
         self._wave_file = wave.open(file, 'rb')
         p = pyaudio.PyAudio()
         
         self._format = Audioanalyzer.pa_to_np_format(p.get_format_from_width(self._wave_file.getsampwidth()))
         self._nr_channels = self._wave_file.getnchannels()
+        self.sample_rate = self._wave_file.getframerate()
 
         stream = p.open(format=p.get_format_from_width(self._wave_file.getsampwidth()),
                         channels=self._nr_channels,
-                        rate=self._wave_file.getframerate(),
+                        rate=self.sample_rate,
                         output=True,
                         frames_per_buffer=self.blocksize,
                         stream_callback=self._file_callback)
@@ -169,6 +216,14 @@ class Audioanalyzer:
         p.terminate()
     
     def _record_callback(self, in_data, frame_count, time_info, status):
+        """Gets called every time a block of samples is recorded.
+        See pyaudio.PyAudio.open
+        
+        Prepares the raw audio data for analyze_signal. In particular translates the sample values
+        into a reasonable amplitude range depending on the format of the file.
+        For multiple channels it passes only the first channel to analyze_signal.
+        """
+        
         signal = np.copy(np.frombuffer(in_data, self._format))
         
         # we only analyze full blocks
@@ -188,6 +243,16 @@ class Audioanalyzer:
         return in_data, pyaudio.paContinue
     
     def analyze_record(self, max_duration=None, stop_event=None):
+        """Record audio and analyze it.
+        
+        Parameters
+        ----------
+        max_duration: float
+            Maximal duration for wich the file will be played.
+            If None it plays the whole file if it's not stopped via stop_event. (Default value = None)
+        stop_event: threading.Event
+            The analysis stops when a given Event is set. (Default value = None)   
+        """
         p = pyaudio.PyAudio()
         
         self._format = Audioanalyzer.pa_to_np_format(p.get_format_from_width(2))
@@ -212,8 +277,25 @@ class Audioanalyzer:
         stream.stop_stream()
         stream.close()
         p.terminate()
-        
+    
+    
+    # Static methods
+    
     def pa_to_np_format(pa_format):
+        """Returns the numpy type that corresponds to a given pyaudio format.
+        Used to read the data buffer with the audio samples correctly.
+        See https://people.csail.mit.edu/hubert/pyaudio/docs/#pyaudio.paFloat32
+        
+        Parameters
+        ----------
+        pa_format: int
+            pyaudio format.
+            
+        Returns
+        -------
+        numpy type
+            The numpy type that corresponds to the given pyaudio format.
+        """
         return {
             1: np.float32,
             2: np.int32,
