@@ -1,9 +1,19 @@
 import numpy as np
 import time
 
-# see http://www.huygens-fokker.org/scala/scl_format.html for specification
 def read_scala(filename):
-    """Reads a .scl file and returns the list of intervales in frequency ratios specified there
+    """Reads a .scl file and returns the list of intervales in specified there.
+    See http://www.huygens-fokker.org/scala/scl_format.html for specification.
+
+    Parameters
+    ----------
+    filename: str
+        Path to the file to be read.
+
+    Returns
+    -------
+    list of floats
+        A list of all intervals (as frequency ratios) specified in the scala file.
     """
     with open(filename) as f:
         lines = f.readlines()
@@ -31,6 +41,21 @@ def read_scala(filename):
 
 
 def write_scala(intervals, filename, description=None, intervals_in_cents=False):
+    """Write a .scl file.
+    See http://www.huygens-fokker.org/scala/scl_format.html for specification.
+
+    Parameters
+    ----------
+    intervals : list of loats
+        The intervals to be written to the file.
+    filename: str
+        Path to the file to be written.
+    description : str
+        A describton for the header of the file. If None is given,
+        description = 'Scala file saved with adaptivetuning ' + time.asctime()
+    intervals_in_cents : bool
+        Specifies whether the intervals given in the first parameter are given in cents or as frequency ratios.
+    """
     if not intervals_in_cents:
         intervals = [Scale.freq_ratio_to_cents(i) for i in intervals]
     
@@ -44,18 +69,46 @@ def write_scala(intervals, filename, description=None, intervals_in_cents=False)
         f.write('\n'.join(lines))
 
 
-# todo write doku
 class Scale:
     """Scale class. Manages a dictionary that assigns every pitches a frequency.
+    
+    In general: Everywhere where a pitch can be given as an argument, it can be given as an int representing its
+    midi number or a str of the format 'A4', 'A#4', 'Bb4', etc. 
+    
+    Attributes
+    ----------
+    reference_pitch : int
+        The reference pitch used in tune_all and similar methods. (Default value = 69)
+    reference_frequency : float
+        Frequency of Reference pitch (Hz), used in methods like tune_pitch_by_interval and similar methods. > 0.
+        Important: the reference is not part of the Scale,
+        i.e. scale[reference_pitch] (or any other method to acces a tuning) does not necesseraly
+        return reference_frequency and scale[reference_pitch] = f (or any other tuning method)
+        never changes the reference_frequency. (Default value = 440)
+    pitches_per_octave : int
+        The number of pitches per octave used in tune_all and similar methods. (Default value = 12)
+    octave_interval : float
+        Frequency ratio of the octave used in tune_pitchclass and similar methods. (Default value = 2)
+    specified_pitches : dict_keys
+        Pitches for wich frequencies are specified. Nonempty, positive values.
+        Can be set with list or range.
+        New specified pitches are set to 0. (Default value = range(128))
+    on_change : function
+        Gets called every time a tuning changes (e.g. to signal an audiogenerator).
+        Arguments: pitch, frequency
+        If you don't want all the messages from the initial setting of the scale, set the onchange after
+        the initialisation.
+        Set to None if you don't want a callback. (Default value = None)
     """
     
+    """Dictionary with Name and nr semitones of all pitchclasses"""
     pitchclasses = {
         'C': 0, 'C#': 1, 'Db': 1, 'D': 2, 'D#': 3, 'Eb': 3, 'E': 4, 'F': 5, 'F#': 6,
         'Gb': 6, 'G': 7, 'G#': 8, 'Ab': 8, 'A': 9, 'A#': 10, 'Bb': 10, 'B': 11
     }
     
-    # some historical tuning rounded to nearest cent
-    # all intended to be 12-tone scales with octave = 2
+    """Some historical tuning rounded to nearest cent
+    all intended to be 12-tone scales with octave = 2"""
     tunings_in_cents = {
         '12TET':        [0, 100, 200, 300, 400, 500, 600, 700, 800, 900, 1000, 1100],
         
@@ -85,7 +138,37 @@ class Scale:
     
     def __init__(self, reference_pitch=69, reference_frequency=440,
                  pitches_per_octave=12, octave_interval=2, specified_pitches=range(128),
-                 init_12TET=True, on_change=None):
+                 init_ET=True, on_change=None):
+        """__init__ method
+        
+        Parameters
+        ----------
+        reference_pitch : int
+            The reference pitch used in tune_all and similar methods. (Default value = 69)
+        reference_frequency : float
+            Frequency of Reference pitch (Hz), used in methods like tune_pitch_by_interval and similar methods. > 0.
+            Important: the reference is not part of the Scale,
+            i.e. scale[reference_pitch] (or any other method to acces a tuning) does not necesseraly
+            return reference_frequency and scale[reference_pitch] = f (or any other tuning method)
+            never changes the reference_frequency. (Default value = 440)
+        pitches_per_octave : int
+            The number of pitches per octave used in tune_all and similar methods. (Default value = 12)
+        octave_interval : float
+            Frequency ratio of the octave used in tune_pitchclass and similar methods. (Default value = 2)
+        specified_pitches : dict_keys
+            Pitches for wich frequencies are specified. Nonempty, positive values.
+            Can be set with list or range.
+            New specified pitches are set to 0. (Default value = range(128))
+        init_ET : bool
+            If true, initialize all frequencies with tune_all_equal_temperament, else initialize to all to 0.
+            (Default value = True)
+        on_change : function
+            Gets called every time a tuning changes (e.g. to signal an audiogenerator).
+            Arguments: pitch, frequency
+            If you don't want all the messages from the initial setting of the scale, set the onchange after
+            the initialisation.
+            Set to None if you don't want a callback. (Default value = None)
+        """
         # specified pitches is range or list, when list then strings are possible
         
         if isinstance(reference_pitch, str):
@@ -103,14 +186,14 @@ class Scale:
                     specified_pitches[i] = Scale.pitchname_to_pitch(specified_pitches[i])
         
         self.dictionary = {i: 0 for i in specified_pitches}
-        if init_12TET:
+        if init_ET:
             self.tune_all_equal_temperament()
     
     @property
     def specified_pitches(self):
         """dict_keys : Pitches for wich frequencies are specified. Nonempty, positive values.
-        Can be set with list or range.
-        New specified pitches are set to 0.
+        Can be set with list (of int or str) or range.
+        New specified pitches are set to 0. (Default value = range(128))
         """
         return self.dictionary.keys()
     
@@ -126,7 +209,7 @@ class Scale:
     
     @property
     def reference_pitch(self):
-        """int : Reference pitch. In pitch_range."""
+        """int : The reference pitch used in tune_all and similar methods. (Default value = 69)"""
         return self._reference_pitch
     
     @reference_pitch.setter
@@ -137,12 +220,11 @@ class Scale:
         
     @property
     def reference_frequency(self):
-        """float : Frequency of Reference pitch, > 0.
+        """float : Frequency of Reference pitch (Hz), used in methods like tune_pitch_by_interval and similar methods. > 0.
         Important: the reference is not part of the Scale,
-        i.e. sclae[reference_pitch] (or any other method to acces a tuning) does not necesseraly
-        return reference_frequency and sclae[reference_pitch] = f (or any other tuning method)
-        never changes the reference_frequency.
-        The reference is only used as a parameter in the tune_by_interval and tune_in_cents methods
+        i.e. scale[reference_pitch] (or any other method to acces a tuning) does not necesseraly
+        return reference_frequency and scale[reference_pitch] = f (or any other tuning method)
+        never changes the reference_frequency. (Default value = 440)
         """
         return self._reference_frequency
     
@@ -152,7 +234,7 @@ class Scale:
     
     @property
     def pitches_per_octave(self):
-        """int : Number of pitches per octave > 0."""
+        """int : The number of pitches per octave used in tune_all and similar methods. (Default value = 12)"""
         return self._pitches_per_octave
     
     @pitches_per_octave.setter
@@ -161,7 +243,7 @@ class Scale:
     
     @property
     def octave_interval(self):
-        """float : Interval size of the octave."""
+        """float : Frequency ratio of the octave used in tune_pitchclass and similar methods. (Default value = 2)"""
         return self._octave_interval
     
     @octave_interval.setter
@@ -170,10 +252,11 @@ class Scale:
     
     @property
     def on_change(self):
-        """Function : Gets called every time a tuning changes.
+        """Function : Gets called every time a tuning changes (e.g. to signal an audiogenerator).
         Arguments: pitch, frequency
         If you don't want all the messages from the initial setting of the scale, set the onchange after
         the initialisation.
+        Set to None if you don't want a callback. (Default value = None)
         """
         return self._on_change
     
@@ -184,14 +267,16 @@ class Scale:
      
     def __getitem__(self, index):
         """Access elements of the pitch-frequency-dictionary through slicing.
+        
         Parameters
         ----------
-            index : int or str or slice or tuple of ints and strings
-                Slicing argument.
+        index : int or str or slice or tuple of int and str
+            Slicing argument.
+            
         Returns
         -------
-            a : float or list
-                The frequency the pitch
+        a : float or list
+            The frequency the pitch
         """
         if isinstance(index, int) or isinstance(index, float):
             try:
@@ -212,12 +297,13 @@ class Scale:
         
     def __setitem__(self, index, value):
         """Set elements of the pitch-frequency-dictionary through slicing.
+        
         Parameters
         ----------
-            index : int or str or slice or tuple of ints and strings
-                Slicing argument.
-            value : int or float or list thereof
-                The frequency the pitch will be tuned to
+        index : int or str or slice or tuple of int and str
+            Slicing argument.
+        value : int or float or list thereof
+            The frequency the pitch will be tuned to
         """
         if isinstance(index, int) or isinstance(index, float) or isinstance(index, str):
             self.tune_pitch(index, value)
@@ -234,6 +320,17 @@ class Scale:
                 count += 1
     
     def tune_pitch(self, pitch, frequency):
+        """Tune a single pitch to a specific frequency.
+        This is mainly for internal use.
+        Use the slicing method (scale[pitch] = frequency), that is much more flexible.
+        
+        Parameters
+        ----------
+        pitch : int or str
+            Pitch to tune.
+        frequency : float
+            Frequency to tune to.
+        """
         if isinstance(pitch, str):
             pitch = Scale.pitchname_to_pitch(pitch)
         # float pitches are allowed but are not guarantied to work with
@@ -243,6 +340,18 @@ class Scale:
             self.on_change(pitch, frequency)
         
     def tune_pitchclass(self, pitch, frequency):
+        """Tune a every pitch of a pitchclass to a specific frequency.
+        E.g. tune_pitchclass('D4', 500) tunes D4=500, D5=500*octave_interval, D3=500/octave_interval, etc.
+     
+        Tunes only pitches in specified_pitches.
+        
+        Parameters
+        ----------
+        pitch : int or str
+            Pitch of the pitchclass to be tune.
+        frequency : float
+            Frequency to tune the given pitch to.
+        """
         # tunes only specified frequencies
         if isinstance(pitch, str):
             pitch = Scale.pitchname_to_pitch(pitch)
@@ -264,8 +373,18 @@ class Scale:
             i -= 1
             
     def tune_all(self, frequencies, pitches=None):
-        # if pitches is None, len(frequencies) has to be equal to picthes per octave
-        # if pitches is None, only specified frequencies will be tuned
+        """Tune all pitches.
+        If pitches is given, every pitch in pitches is tuned to the corresponding frequency in frequencies.
+        If pitches is None, len(frequencies) has to be equal to pitches_per_octave
+        then, tune_pitchclass is called for every pitch in range(pitches_per_octave) and every frequency in frequencies.
+        
+        Parameters
+        ----------
+        frequencies : list of float
+            Frequencies to be tuned to.
+        pitches : list of int or str
+            Pitches to be tuned.
+        """
         if pitches is None:
             for i in range(self.pitches_per_octave):
                 self.tune_pitchclass(self.reference_pitch + i, frequencies[i])
@@ -274,39 +393,77 @@ class Scale:
                 self.tune_pitch(pitches[i], frequencies[i])
             
     def tune_pitch_by_interval(self, pitch, interval):
+        """Tune pitch to form a specific interval with the reference frequency.
+        
+        Parameters
+        ----------
+        pitch : int or str
+            Pitch to be tuned.
+        interval : list of int or str
+            Target interval.
+        """
         self.tune_pitch(pitch, interval * self.reference_frequency)
     
     def tune_pitchclass_by_interval(self, pitch, interval):
+        """Tune pitch by interval and the other pitches of the pitchclass accordingly.
+        
+        Parameters
+        ----------
+        pitch : int or str
+            Pitch to be tuned.
+        interval : list of int or str
+            Target interval.
+        """
         self.tune_pitchclass(pitch, interval * self.reference_frequency)
         
     def tune_all_by_interval(self, intervals, pitches=None):
-        # if pitches is None, len(intervals) has to be equal to picthes per octave
+        """Same as tune_all with intervals (relative to the reference frequency) instead of frequencies."""
         self.tune_all([interval * self.reference_frequency for interval in intervals], pitches)
         
     def tune_pitch_by_interval_in_cents(self, pitch, cents):
-        # interval is given in cents
+        """Same as tune_pitch_by_interval but interval given in cents."""
         self.tune_pitch(pitch, 2**(cents/1200) * self.reference_frequency)
         
     def tune_pitchclass_by_interval_in_cents(self, pitch, cents):
-        # interval is given in cents
+        """Same as tune_pitchclass_by_interval but interval given in cents."""
         self.tune_pitchclass(pitch, 2**(cents/1200) * self.reference_frequency)
     
     def tune_all_by_interval_in_cents(self, cents, pitches=None):
-        # if pitches is None, len(cents) has to be equal to picthes per octave
-        # because when pitches is None, all octaves in specified_pitches get tuned
+        """Same as tune_pitch_by_interval but interval given in cents.
+        
+        Can be conveniently used together with the presets in tunings_in_cents.
+        e.g. tune_all_by_interval_in_cents(Scale.tunings_in_cents['Werkmeister 4'])
+        """
         self.tune_all([2**(c/1200) * self.reference_frequency for c in cents], pitches)
     
     def tune_all_equal_temperament(self):
+        """Tunes all specified pitches according to an equal tempered scale.
+        Using the stored pitches per octave and octave interval."""
         self.tune_all_by_interval([
             self.octave_interval**(p / self.pitches_per_octave)
             for p in range(self.pitches_per_octave)
         ])
     
     def generalize_to_midi_range(self, pitch):
-        # generalizes a pitch to all other pitches of the same pitchclass in midi range (0-127)
-        # other tune_pitchclass, this creates new specified pitches
-        # octaves of pitch will be put to the midi octaves: pitch + i * 12
-        # regardless of self.pitches_per_octave
+        """Generalizes a pitch (or a list of pitches) to all other pitches of the same pitchclass in midi range (0-127).
+        Other than tune_pitchclass, this creates new specified pitches.
+        Octaves of pitch will be put to the midi octaves: pitch + i * 12 regardless of self.pitches_per_octave
+        
+        The is meant for creating a scale that is meant to be played with the standard keyboard layout. For example:
+        diatonic_pitches = ['C4','D4', 'E4', 'F4', 'G4', 'A4', 'B4']
+        diatonic_intervals = [1, 9/8, 5/4, 4/3, 3/2, 5/3, 15/8]
+        s = Scale(reference_pitch=diatonic_pitches[0], 260,
+                  pitches_per_octave=len(diatonic_pitches), octave_interval=2,
+                  specified_pitches=diatonic_pitches, init_ET=False)
+        s.tune_all_by_interval(diatonic_intervals, diatonic_pitches)
+        s.generalize_to_midi_range(diatonic_pitches)
+        (setting pitches_per_octave=len(diatonic_pitches) has no effect here other than beeing 'semantically correct')
+        
+        Parameters
+        ----------
+        pitch : int or str or list of int or str
+            Pitch(es) to generalize.
+        """
         if isinstance(pitch, list) or isinstance(pitch, tuple) or isinstance(pitch, range):
             for p in pitch:
                 self.generalize_to_midi_range(p)
@@ -321,17 +478,43 @@ class Scale:
     ## static methods
     
     def pitchname_to_pitch(name):
-        # allways the names of the keys you have to press on a standard midi-keyboard,
-        # i.e. it assumes 12 tones per octave, regardless of what this.pitches_per_octave is
+        """Translates pitchnames ('A#4') to midi numbers (70).
+        Scientific pitch notation.
+        Allways the names of the keys you have to press on a standard midi-keyboard,
+        i.e. it assumes 12 tones per octave, regardless of what this.pitches_per_octave is.
+        
+        Parameters
+        ----------
+        name : str
+            Pitchname to translate.
+            
+        Returns
+        -------
+        int
+            Midi pitch of the given name.
+        """
         if name[1] == '#' or name[1] == 'b':
             return Scale.pitchclasses[name[0:2]] + 12 * (int(name[2:]) + 1)
         else:
             return Scale.pitchclasses[name[0]] + 12 * (int(name[1:]) + 1)
     
     def pitch_to_pitchname(pitch):
-        # allways the names of the keys you have to press on a standard midi-keyboard,
-        # i.e. it assumes 12 tones per octave, regardless of what this.pitches_per_octave is
+        """Translates midi numbers (70) to pitchnames ('A#4').
+        Scientific pitch notation.
+        Allways the names of the keys you have to press on a standard midi-keyboard,
+        i.e. it assumes 12 tones per octave, regardless of what this.pitches_per_octave is.
+        Allways the sharp version (not Bb4).
         
+        Parameters
+        ----------
+        pitch : int
+            Midi pitch to translate.
+            
+        Returns
+        -------
+        str
+            Name of the given midi pitch.
+        """
         # filter to get consistent accidentals (always #)
         for name, pitchclass in filter(lambda pair: pair[0].find('b') == -1, Scale.pitchclasses.items()):
             if pitch % 12 == pitchclass:
@@ -339,7 +522,31 @@ class Scale:
         return pitchclassname + str(pitch // 12 - 1)
     
     def cents_to_freq_ratio(cents):
+        """Calculates frequency ratio from cents.
+        
+        Parameters
+        ----------
+        cents : float
+            Cents to translate.
+            
+        Returns
+        -------
+        float
+            Corresponding frequency ratio.
+        """
         return 2**(cents / 1200)
     
     def freq_ratio_to_cents(interval):
+        """Calculates cents from frequency ratio.
+        
+        Parameters
+        ----------
+        interval : float
+            Frequency ratio to translate.
+            
+        Returns
+        -------
+        float
+            Corresponding cent value.
+        """
         return np.log2(interval) * 1200

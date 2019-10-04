@@ -85,7 +85,7 @@ def test_generalize_to_midi_range():
     diatonic_intervals = [1, 9/8, 5/4, 4/3, 3/2, 5/3, 15/8]
     scale = Scale(reference_pitch=diatonic_pitches[0], reference_frequency=440/diatonic_intervals[5],
                   pitches_per_octave=len(diatonic_pitches), octave_interval=2,
-                  specified_pitches=diatonic_pitches, init_12TET=False)
+                  specified_pitches=diatonic_pitches, init_ET=False)
 
     assert scale[tuple(diatonic_pitches)] == [0, 0, 0, 0, 0, 0, 0]
 
