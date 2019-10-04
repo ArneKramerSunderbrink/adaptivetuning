@@ -28,7 +28,7 @@ class Audioanalyzer:
         Downsampling factor. (Default value = 8, which means everey eighth sample is used by the FFT)
     blocksize : int
         The signal to be analysed gets cut into pieaces of that many samples. (Default value = 2**15)
-    prominence_threshold: float
+    prominence_threshold : float
         The lowest possible prominence of a peak that can be found in the spectrum.
         If 0, there will be no filtering. The peaks will still be sorted by prominence.
         See scipy.signal.find_peaks. (Default value = 0.015)
@@ -101,9 +101,9 @@ class Audioanalyzer:
 
         Returns
         -------
-        peaks_freq: list of floats
+        peaks_freq : list of floats
             A list of the approximated frequencies of the ten most prominent peaks, sorted by prominence.
-        peaks_amp: list of floats
+        peaks_amp : list of floats
             A list of the approximated volumes of the ten most prominent peaks, sorted by prominence.
         """
         # Downsample
@@ -179,12 +179,12 @@ class Audioanalyzer:
         
         Parameters
         ----------
-        file: str
+        file : str
             Path to wave file to be analyzed.
-        max_duration: float
+        max_duration : float
             Maximal duration for wich the file will be played.
             If None it plays the whole file if it's not stopped via stop_event. (Default value = None)
-        stop_event: threading.Event
+        stop_event : threading.Event
             The analysis stops when a given Event is set. (Default value = None)   
         """
         self._wave_file = wave.open(file, 'rb')
@@ -247,10 +247,10 @@ class Audioanalyzer:
         
         Parameters
         ----------
-        max_duration: float
+        max_duration : float
             Maximal duration for wich the file will be played.
             If None it plays the whole file if it's not stopped via stop_event. (Default value = None)
-        stop_event: threading.Event
+        stop_event : threading.Event
             The analysis stops when a given Event is set. (Default value = None)   
         """
         p = pyaudio.PyAudio()
@@ -288,7 +288,7 @@ class Audioanalyzer:
         
         Parameters
         ----------
-        pa_format: int
+        pa_format : int
             pyaudio format.
             
         Returns
