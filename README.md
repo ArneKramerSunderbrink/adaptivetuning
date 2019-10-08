@@ -28,7 +28,7 @@ An introduction on how to use adaptivetuning is available in the examples folder
 The Bohlen-Pierce scale - A stretched scale (octave = 3) with 13 pitches per octave:
 
     intervals = [1, 27/25, 25/21, 9/7, 7/5, 75/49, 5/3, 9/5, 49/25, 15/7, 7/3, 63/25, 25/9]
-    s = Scale(reference_pitch='60', reference_frequency=260,
+    s = Scale(reference_pitch='C4', reference_frequency=260,
                   pitches_per_octave=13, octave_interval=3)
     s.tune_all_by_interval(intervals)
     s[60]  # yields 260 Hz
