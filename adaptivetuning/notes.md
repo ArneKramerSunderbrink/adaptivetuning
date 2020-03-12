@@ -9,8 +9,6 @@
 
 - offline version of everything:
 
-  - calculate the tuning of a given set of notes
-
   - calculate something like a microtonal score that can be played later
 
   - record audio
