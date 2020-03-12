@@ -63,3 +63,39 @@ Let's hear the first two bars of Bach's 'Jesu meine Freude' with a stretched tim
     m.max_notes = 30
     m.read_file("midi_files/BWV_0227.mid")
     m.play_file()
+
+## Troubleshooting
+
+On a Mac, you might get the following problems with the sc3nb library:
+
+### sc3nb is not able to find the sclang executable
+
+I.e.
+
+    sc = sc3nb.startup()
+
+returns
+    
+    FileNotFoundError: Unable to find sclang executable
+
+Solution: You can add your sclang path as an argument:
+
+    sc = sc3nb.startup(sclangpath="/Applications/SuperCollider/SuperCollider.app/Contents/MacOS/")
+
+Or add ```/Applications/SuperCollider/SuperCollider.app/Contents/MacOS/```
+to you ```$PATH``` system-variable.
+
+### sc3nb throws timeout when booting the SC-server
+
+If you just try again, it usually starts successfully on the second or third try. Most of the time I just wrote my self a small loop to do that for me:
+
+    while True:
+        try:
+            sc = sc3nb.startup()  # sometimes throws timeout
+            break
+        except TimeoutError as e:
+            print(e)
+            print("retry...")
+    print("Startup successful")
+
+This creates a new SC-server on every try though, only the one that is opened last is needed, the others can be closed manually. 
