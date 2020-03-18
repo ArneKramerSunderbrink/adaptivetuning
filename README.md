@@ -5,6 +5,8 @@ adaptivetuning is a python package that offers methods to experiment with adapti
 
 An object of the Tuner class takes a precomposed piece of music in form of a midi file or a live performance in form of a midi stream on the one hand, and some recording of environmental noise in form of an audio file or an audio stream on the other hand, analyses the environmental noise for pronounced frequencies and plays back the midi data at frequencies that, while staying true to the original musical material, are fine tuned to minimize the inner-musical dissonance as well as the dissonance between the music and the pronounced frequencies in the environmental noise.
 
+This system (version 1.0) was part of the bachelor thesis I did in 2019. You can find it in the thesis folder. Have a look if you are interessted in the theoretical motivation behind the tuning algorithm, in particular the beating theory of dissonance.
+
 Beyond this very specific application there are methods that will be usefull when experimenting with nonstandard tuning in general. In particular we have
 * A Scale class that provides many methods to conveniently define different kinds of scales.
 * A simple microtonal polyphnoc additive synthesizer: The Audiogenerator class. It tunes its tone according to a Scale object.
